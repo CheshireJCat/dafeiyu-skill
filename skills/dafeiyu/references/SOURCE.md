@@ -12,6 +12,26 @@
 
 ## 网络与本地数据
 
-只有显式 `fetch` 会通过系统 curl 访问上述上游 GitHub HTTPS Release。下载会校验固定版本和 SHA-256，不执行压缩包内容，只安装明确列出的图片和 manifest。工具没有上传、遥测或自动更新逻辑，不读取聊天记录。
+原始模式下，显式 `fetch` 会通过系统 curl 访问上述上游 GitHub HTTPS Release。下载会校验固定版本和 SHA-256，不执行压缩包内容，只安装明确列出的图片和 manifest。工具没有上传、遥测或自动更新逻辑，不读取聊天记录。
 
 `search` 和 `list` 完全离线。缓存默认保存在 `~/.cache/dafeiyu-skill/dafeiyu-001-v1.3.0`；可通过 `DAFEIYU_DATA_DIR` 指定其他个人目录。工具不改动全局 AGENTS.md、Hook 或宿主配置。
+
+
+## 扩展来源（2026-10-20）
+
+- DSH 图库：https://github.com/yyh-001/dsh-meme-packs ，固定快照 `1004d77910a4612727b3aba17c683f4b75ec01e5`。`sync` 读取 catalog.json 与 stickers.json，7 套、431 条记录；包含 DeepSeek 酱语录 128 条。扩展元数据仅保存到使用者本地，不随 Skill 发布。
+- 梗鲸作者仓库：https://github.com/the-beating-light-of-the-nail/deepseek-chan-meme-pack ，核对提交 `c82a0fb1c8958c2f0d6ea7fa7c12128027cfd7c6` 的说明。作者公开推荐 CDN 热链，并指向完整结构化目录。
+- 梗鲸实时目录：https://aigengtu.com/gallery-index.json 。仅使用 DeepSeek娘 分组；本次同步为 2,030 条。实时数量可变化，以 packs 命令输出为准。
+- CDN：https://img.aigengtu.com/0_preview/meme/NNN.webp 。按选中项下载，不重新托管，不把 2,030 张批量下载作为默认行为。
+- 扩展缓存：`DAFEIYU_LIBRARY_DIR`，默认 `~/.cache/dafeiyu-skill/library`。显式 sync 联网更新目录；fetch 联网取图；search/list/packs 离线。无上传、遥测、Hook 或全局配置修改。
+
+### 许可与署名
+
+以每套上游说明和包内 manifest 为准：[DSH 许可说明](https://github.com/yyh-001/dsh-meme-packs/blob/1004d77910a4612727b3aba17c683f4b75ec01e5/LICENSES.md)。
+
+- dafeiyu-001 / dafeiyu-learned：personal，再分发或商用需权利人许可。
+- official-001 / maid-emoji / pack-mvc2p5cv：CC-BY-NC-SA-4.0，需遵循署名、非商业、相同方式共享等条件。
+- maid-emoji 的女仆鲸鱼娘二次设计作者：ZipZipPipe；角色原作：上善无形。whale-girl-emoji 是含不同来源作品的同人整理包，详见上游逐项说明。
+- deepseek-chan / gengjing / whale-girl-emoji：noncommercial-fan，原画与角色权利归各原作者，不是适配器作者的授权。梗鲸有权利人下架入口；数据源失效或撤下时不得绕过访问限制。
+
+每条输出包含 license、source；已缓存包保存原 manifest 或本地校验记录。ZIP 对上游压缩包 SHA-256 校验；CDN 无发布者哈希，文件签名检查与首次缓存 SHA-256 仅用于格式/本地完整性检查，不代表上游签名认证。
