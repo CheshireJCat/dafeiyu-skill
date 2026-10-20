@@ -24,6 +24,7 @@
 - 梗鲸实时目录：https://aigengtu.com/gallery-index.json 。仅使用 DeepSeek娘 分组；本次同步为 2,030 条。实时数量可变化，以 packs 命令输出为准。
 - CDN：https://img.aigengtu.com/0_preview/meme/NNN.webp 。按选中项下载，不重新托管，不把 2,030 张批量下载作为默认行为。
 - 扩展缓存：`DAFEIYU_LIBRARY_DIR`，默认 `~/.cache/dafeiyu-skill/library`。显式 sync 联网更新目录；fetch 联网取图；search/list/packs 离线。无上传、遥测、Hook 或全局配置修改。
+- 随机选图：pick 按最高关键词匹配、近期去重和图库平衡选择；无 --fetch 时完全离线、不写历史，--fetch 显式取图并校验成功后，仅在本地 recent.json 保留最近 20 个选图 ID、图库 ID 和去重标识，不保存聊天或用户信息，不上传记录。这是近期选图记录，不是消息投递回执；删除可重置。
 
 ### 许可与署名
 

@@ -1,7 +1,11 @@
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
+import random
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -117,6 +121,101 @@ class LibraryTests(unittest.TestCase):
         self.assertEqual(app.select(self.root, self.index, limit=1, offset=1), [])
         with self.assertRaisesRegex(ValueError, "Unknown pack"):
             app.select(self.root, self.index, pack="missing")
+
+    def diverse_index(self, sizes):
+        packs, rows = {}, []
+        for number, size in enumerate(sizes):
+            key = f"pack-{number}"
+            packs[key] = dict(self.pack, id=key, count=size)
+            for position in range(size):
+                identity = number * 1000 + position
+                rows.append(dict(self.row, id=f"{key}/{position}.jpg", pack=key, path=f"{position}.jpg",
+                                 url=f"https://img.aigengtu.com/0_preview/meme/{identity}.webp"))
+        return {"packs": packs, "stickers": rows}
+
+    def test_search_distributes_equal_matches_across_packs(self):
+        index = self.diverse_index([20, 1, 1])
+        results = app.select(self.root, index, "比心", limit=3, rng=random.Random(9))
+        self.assertEqual({r["pack"] for r in results}, set(index["packs"]))
+
+    def test_search_randomizes_ties_but_preserves_relevance(self):
+        index = self.diverse_index([10])
+        weaker = dict(index["stickers"][0], id="pack-0/weak", keywords="", caption="比心", name="比心")
+        index["stickers"].append(weaker)
+        rng = random.Random(12)
+        choices = [app.select(self.root, index, "比心 开心", limit=1, rng=rng)[0]["id"] for _ in range(30)]
+        self.assertGreater(len(set(choices)), 1)
+        self.assertNotIn(weaker["id"], choices)
+
+    def test_pick_balances_packs_instead_of_image_counts(self):
+        index = self.diverse_index([1, 200])
+        rng = random.Random(42)
+        small = sum(app.pick(self.root, index, "比心", rng=rng)["pack"] == "pack-0" for _ in range(400))
+        self.assertGreater(small, 150)
+        self.assertLess(small, 250)
+        self.assertFalse((self.root / "recent.json").exists())
+
+    def test_pick_fetch_avoids_recent_images_and_rotates_sources(self):
+        index = self.diverse_index([8, 8, 8])
+        rng = random.Random(7)
+        with patch.object(app, "download", side_effect=lambda url, path, maximum: path.write_bytes(self.image)):
+            choices = [app.pick(self.root, index, "比心", fetch=True, rng=rng) for _ in range(21)]
+        self.assertEqual(len({r["id"] for r in choices}), 21)
+        for i in range(2, len(choices)):
+            self.assertEqual(len({r["pack"] for r in choices[i-2:i+1]}), 3)
+        self.assertTrue(all(r["cached"] and Path(r["path"]).is_file() for r in choices))
+        history = app.recent_choices(self.root)
+        self.assertEqual(len(history), app.RECENT_LIMIT)
+        self.assertTrue(all(set(r) == {"id", "pack", "key"} for r in history))
+
+    def test_pick_excludes_recent_cdn_aliases_across_packs(self):
+        index = self.diverse_index([2, 1])
+        first = index["stickers"][0]
+        alias = index["stickers"][-1]
+        alias["url"] = first["url"].replace("/0_preview/", "/")
+        app.save_json(self.root / "recent.json", [{"id": first["id"], "pack": first["pack"], "key": app.image_key(first)}])
+        choice = app.pick(self.root, index, "比心", rng=random.Random(2))
+        self.assertEqual(choice["id"], index["stickers"][1]["id"])
+
+    def test_small_pool_relaxes_history_without_immediate_repeat(self):
+        index = self.diverse_index([1, 1])
+        rng = random.Random(3)
+        with patch.object(app, "download", side_effect=lambda url, path, maximum: path.write_bytes(self.image)):
+            choices = [app.pick(self.root, index, "比心", fetch=True, rng=rng) for _ in range(5)]
+        self.assertTrue(all(left["id"] != right["id"] for left, right in zip(choices, choices[1:])))
+
+    def test_pick_pack_constraint_no_matches_and_no_sync(self):
+        index = self.diverse_index([4, 4])
+        self.assertEqual(app.pick(self.root, index, "比心", pack="pack-1")["pack"], "pack-1")
+        with self.assertRaisesRegex(ValueError, "No matching"):
+            app.pick(self.root, index, "no-match")
+        with self.assertRaisesRegex(ValueError, "Extended catalog missing"):
+            app.load(self.root)
+
+    def test_failed_fetch_does_not_record_selection(self):
+        with patch.object(app, "download", side_effect=ValueError("offline")):
+            with self.assertRaisesRegex(ValueError, "offline"):
+                app.pick(self.root, self.index, "比心", fetch=True)
+        self.assertFalse((self.root / "recent.json").exists())
+
+    def test_invalid_optional_history_is_ignored(self):
+        for value in ["invalid", "null", '[{}, {"id": 4}, 2]']:
+            (self.root / "recent.json").write_text(value)
+            self.assertEqual(app.recent_choices(self.root), [])
+
+    def test_pick_cli_uses_extended_index_and_tracks_only_explicit_fetch(self):
+        app.save_json(self.root / "index.json", self.index)
+        with patch.object(app, "download", side_effect=lambda url, path, maximum: path.write_bytes(self.image)):
+            app.fetch_one(self.root, self.index, self.row["id"])
+        script = SCRIPT.with_name("dafeiyu.py")
+        env = dict(os.environ, DAFEIYU_LIBRARY_DIR=str(self.root))
+        command = [sys.executable, str(script), "pick", "比心"]
+        preview = subprocess.run(command, env=env, capture_output=True, text=True, check=True)
+        self.assertTrue(json.loads(preview.stdout)["cached"])
+        self.assertFalse((self.root / "recent.json").exists())
+        fetched = subprocess.run(command + ["--fetch"], env=env, capture_output=True, text=True, check=True)
+        self.assertEqual(json.loads(fetched.stdout)["id"], self.row["id"])
+        self.assertEqual(len(app.recent_choices(self.root)), 1)
 
 
 if __name__ == "__main__":

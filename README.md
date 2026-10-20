@@ -44,6 +44,7 @@ sh install.sh
 ```sh
 python3 scripts/dafeiyu.py sync
 python3 scripts/dafeiyu.py packs
+python3 scripts/dafeiyu.py pick 开心 --fetch
 python3 scripts/dafeiyu.py search 比心
 python3 scripts/dafeiyu.py search 一碗 --pack gengjing --limit 3
 python3 scripts/dafeiyu.py fetch --id gengjing/340
@@ -52,6 +53,12 @@ python3 scripts/dafeiyu.py list --pack maid-emoji --limit 10 --offset 0
 ```
 
 `sync` 显式联网读取 DSH 固定快照与梗鲸实时目录；失败保留旧索引。扩展缓存默认在 `~/.cache/dafeiyu-skill/library`，用 `DAFEIYU_LIBRARY_DIR` 修改。`search`、`list`、`packs` 完全离线。
+
+日常主动配图默认使用 `pick 语境关键词 --fetch`：在最匹配的候选中，避开最近 20 次选过的图片、尽量轮换最近两套图库，然后等机会抽取图库，再随机选一张。不会因图库图片多或已经缓存而更偏爱某一套；候选太少时逐步放宽近期限制。`search` 也会打乱同分结果，并轮流展示不同图库，`list` 仍保持稳定分页。
+
+`pick` 需要先同步扩展目录。无 `--fetch` 时仅离线返回候选，不下载、不改近期记录；加上 `--fetch` 后按需取回并校验选中的图片，成功后在扩展缓存的 `recent.json` 保存最近 20 个选图 ID、图库 ID 和去重标识，不包含聊天内容。该记录表示选过图片，不保证已经发出；删除文件可重置。多个会话并行时去重为尽力而为。
+
+可说“换个图库”“别总用原版 24 张”让助手扩大来源；指定某套图库时仍可用 `--pack`。只有明确想要完全随机的图时才省略关键词，例如 `pick --fetch`；日常仍先保证图片和台词适合当前语境。
 
 未缓存候选返回描述、许可、来源和 `fetchArgs`；不会编造路径或 Markdown。按搜索结果的精确 ID 执行 `fetch --id` 后，返回真实绝对路径及可嵌入回复的 Markdown。示例 ID 以后可能从实时目录撤下，以搜索结果为准。
 

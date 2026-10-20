@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 from pathlib import Path, PurePosixPath
+import random
 import re
 import shutil
 import subprocess
@@ -17,6 +18,7 @@ GALLERY_REPO = "https://github.com/the-beating-light-of-the-nail/deepseek-chan-m
 IMAGE_HOST = "img.aigengtu.com"
 MAX_IMAGE = 8_000_000
 MAX_ARCHIVE = 80_000_000
+RECENT_LIMIT = 20
 
 
 def root_dir():
@@ -257,27 +259,99 @@ def result(root, index, row):
     return output
 
 
-def select(root, index, query=None, pack=None, limit=3, offset=0):
+def image_key(row):
+    return row.get("url", row["id"]).replace("/0_preview/", "/")
+
+
+def ranked(index, query=None, pack=None):
     if pack and pack not in index["packs"]:
         raise ValueError("Unknown pack; run packs to see available IDs")
     rows = [r for r in index["stickers"] if pack is None or r["pack"] == pack]
-    if query is not None:
-        tokens = query.casefold().split()
-        scored = []
-        for row in rows:
-            haystack = " ".join(str(row[k]) for k in ("id", "name", "caption", "keywords", "tag")).casefold()
-            score = sum(token in haystack for token in tokens)
-            if score:
-                scored.append((score, row))
-        rows = [r for _, r in sorted(scored, key=lambda pair: -pair[0])]
-        # Curated deepseek-chan and the full gallery overlap; one candidate per CDN image.
-        unique, seen = [], set()
-        for row in rows:
-            identity = row.get("url", row["id"]).replace("/0_preview/", "/")
-            if identity not in seen:
-                seen.add(identity)
-                unique.append(row)
-        rows = unique[:limit]
-    else:
-        rows = rows[offset:offset + limit]
-    return [result(root, index, row) for row in rows]
+    if query is None:
+        return [(0, row) for row in rows]
+    tokens = query.casefold().split()
+    scored = []
+    for row in rows:
+        haystack = " ".join(str(row[k]) for k in ("id", "name", "caption", "keywords", "tag")).casefold()
+        score = sum(token in haystack for token in tokens)
+        if score:
+            scored.append((score, row))
+    return sorted(scored, key=lambda pair: -pair[0])
+
+
+def select(root, index, query=None, pack=None, limit=3, offset=0, rng=None):
+    scored = ranked(index, query, pack)
+    if query is None:
+        return [result(root, index, row) for _, row in scored[offset:offset + limit]]
+    rng = rng or random.SystemRandom()
+    # Keep relevance order, but rotate equally relevant packs and shuffle within each pack.
+    # Round-robin candidates keep a large gallery from occupying every result slot.
+    levels = {}
+    for score, row in scored:
+        levels.setdefault(score, {}).setdefault(row["pack"], []).append(row)
+    selected, seen = [], set()
+    for groups in levels.values():
+        packs = list(groups)
+        rng.shuffle(packs)
+        for rows in groups.values():
+            rng.shuffle(rows)
+        while packs:
+            remaining = []
+            for key in packs:
+                rows = groups[key]
+                while rows:
+                    row = rows.pop()
+                    identity = image_key(row)
+                    if identity not in seen:
+                        seen.add(identity)
+                        selected.append(row)
+                        break
+                if len(selected) >= limit:
+                    return [result(root, index, row) for row in selected]
+                if rows:
+                    remaining.append(key)
+            packs = remaining
+    return [result(root, index, row) for row in selected]
+
+
+def recent_choices(root):
+    try:
+        data = json.loads((root / "recent.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    if not isinstance(data, list):
+        return []
+    return [r for r in data if isinstance(r, dict) and
+            all(isinstance(r.get(k), str) for k in ("id", "pack", "key"))][-RECENT_LIMIT:]
+
+
+def pick(root, index, query=None, pack=None, fetch=False, rng=None):
+    scored = ranked(index, query, pack)
+    if not scored:
+        raise ValueError("No matching stickers; try a shorter keyword")
+    rng = rng or random.SystemRandom()
+    # Randomness never promotes a weaker keyword match over the best match tier.
+    rows = [row for score, row in scored if score == scored[0][0]]
+    recent = recent_choices(root)
+    seen = {r["key"] for r in recent}
+    fresh = [row for row in rows if image_key(row) not in seen]
+    if fresh:
+        rows = fresh
+    elif recent:
+        # Small matching pools can exhaust the window; still avoid an immediate repeat if possible.
+        rows = [row for row in rows if image_key(row) != recent[-1]["key"]] or rows
+    groups = {}
+    for row in rows:
+        groups.setdefault(row["pack"], {})[image_key(row)] = row
+    recent_packs = {r["pack"] for r in recent[-2:]}
+    last_pack = recent[-1]["pack"] if recent else None
+    packs = ([key for key in groups if key not in recent_packs] or
+             [key for key in groups if key != last_pack] or list(groups))
+    key = rng.choice(packs)
+    row = rng.choice(list(groups[key].values()))
+    output = fetch_one(root, index, row["id"]) if fetch else result(root, index, row)
+    if fetch:
+        # Selection history, not a delivery receipt. Record only after successful image verification.
+        recent.append({"id": row["id"], "pack": key, "key": image_key(row)})
+        save_json(root / "recent.json", recent[-RECENT_LIMIT:])
+    return output

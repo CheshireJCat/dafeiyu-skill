@@ -126,11 +126,15 @@ def main():
     find.add_argument("query")
     find.add_argument("--limit", type=int, choices=range(1, 25), default=3)
     find.add_argument("--pack", help="Restrict extended search to a pack ID")
+    choose = commands.add_parser("pick", help="Pick a relevant random image across packs; requires sync")
+    choose.add_argument("query", nargs="?", help="Optional keywords; omit only for unrestricted random selection")
+    choose.add_argument("--pack", help="Use a specific pack only when requested")
+    choose.add_argument("--fetch", action="store_true", help="Explicitly fetch/verify the selected image and remember it")
     args = parser.parse_args()
     try:
         import library
         extended_root = library.root_dir()
-        use_extended = args.command in ("sync", "packs") or bool(getattr(args, "id", None)) or bool(getattr(args, "pack", None))
+        use_extended = args.command in ("sync", "packs", "pick") or bool(getattr(args, "id", None)) or bool(getattr(args, "pack", None))
         use_extended = use_extended or (args.command in ("search", "list") and (extended_root / "index.json").is_file())
         if use_extended:
             if args.command == "sync":
@@ -139,6 +143,8 @@ def main():
                 index = library.load(extended_root)
                 if args.command == "packs":
                     output = list(index["packs"].values())
+                elif args.command == "pick":
+                    output = library.pick(extended_root, index, args.query, args.pack, args.fetch)
                 elif args.command == "fetch":
                     if args.id:
                         output = library.fetch_one(extended_root, index, args.id)
