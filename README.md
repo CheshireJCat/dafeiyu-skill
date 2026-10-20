@@ -19,6 +19,18 @@
 npx skills add CheshireJCat/dafeiyu-skill --skill dafeiyu --agent codex --global
 ```
 
+普通 `npx skills add` 只安装文件，不运行本 Skill 的安装后提示。希望安装命令结束后立即显示默认频率、启用方法和切换指令，可先克隆本仓库，然后运行：
+
+```sh
+sh install.sh
+```
+
+它调用同一个官方 skills CLI，默认安装到个人全局；在目标项目里用 `sh /实际路径/dafeiyu-skill/install.sh --project` 则只安装到该项目。提示展示默认档位，不读取其他会话状态，也不自动授权主动配图或改写个人指令。
+
+助手在安装后或本会话首次启用 Skill 时，会简短说明**当前档位、自动调节状态和切换方式**；已有个人偏好优先，不每轮重复。没有主动配图许可时会说明“当前仅点播，开启后默认高频（约 70%）＋自动调整”。可直接说：
+
+> 使用 $dafeiyu，告诉我当前频率和切换方式。
+
 下一轮或新会话里说：
 
 > 使用 $dafeiyu，同步梗鲸和 DSH 表情目录，找一张“就吃一碗”的大肥鱼，取回后放在回复里。
@@ -65,6 +77,7 @@ ZIP 图库首次取图时下载整套包并验证上游 SHA-256；CDN 图仅按�
 - 上游描述与关键词：保留 [上游 MIT 声明](skills/dafeiyu/references/UPSTREAM-LICENSE.txt)。
 - 图片与扩展元数据：按来源保留 **personal**、**noncommercial-fan**、**CC-BY-NC-SA-4.0** 等许可，**不属于本仓库 MIT 授权**。女仆鲸鱼娘二次设计署名 ZipZipPipe，角色原作上善无形，其他作品来源与约束详见 [来源和数据行为](skills/dafeiyu/references/SOURCE.md)及[上游许可说明](https://github.com/yyh-001/dsh-meme-packs/blob/main/LICENSES.md)。
 - skills.sh 可通过上述安装命令发现和安装本 Skill；排行榜与页面收录取决于平台处理，不是 OpenAI 官方目录背书。
+- 新安装从 GitHub 拉取当前内容，skills.sh 展示页可能仍有缓存。已安装用户可重新运行上面的定向安装命令更新本 Skill；`npx skills update` 会检查并更新所安装的技能，使用前留意范围。
 
 本项目是独立社区适配，与 DeepSeek、OpenAI 及上游图库作者没有隶属关系。
 

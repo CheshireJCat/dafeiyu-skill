@@ -1,4 +1,4 @@
 interface:
   display_name: "大肥鱼表情包"
   short_description: "从梗鲸与 DSH 多套图库按语境选图，按需缓存后给 Codex 回复配表情包。"
-  default_prompt: "使用 $dafeiyu，选一张符合当前语境的大肥鱼表情包放在回复里。"
+  default_prompt: "使用 $dafeiyu，告诉我当前配图频率和切换方式，再按当前语境选一张表情包。"
