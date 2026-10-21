@@ -2,6 +2,8 @@
 
 给 Codex 桌面端回复配一张合适的大肥鱼。支持按中文描述、关键词和情绪选图，使用真实本地图片展示；不依赖 DSH、MCP 或模型 API Key。
 
+本 Skill 受 [dsh-meme](https://github.com/yyh-001/dsh-meme) 的「按语境发表情」思路启发，感谢原项目作者及图库维护者。
+
 **图片不随 Skill 分发。** 现已接入 [dsh-meme 图库市场](https://github.com/yyh-001/dsh-meme-packs)和 [DeepSeek 娘 / 梗鲸](https://github.com/the-beating-light-of-the-nail/deepseek-chan-meme-pack)：同步公开目录，离线检索，选中后缓存图片。
 
 | 目录 | 当前覆盖范围 |
